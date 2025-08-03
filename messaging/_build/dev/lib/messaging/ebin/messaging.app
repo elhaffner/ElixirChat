@@ -1,0 +1,13 @@
+{application,messaging,
+             [{config_mtime,1754217001},
+              {optional_applications,[]},
+              {applications,[kernel,stdlib,elixir,logger]},
+              {description,"messaging"},
+              {modules,['Elixir.MyApp.Application','Elixir.MyApp.ChatRoom',
+                        'Elixir.MyApp.ClientConnection',
+                        'Elixir.MyApp.ConnectionSupervisor',
+                        'Elixir.MyApp.Listening',
+                        'Elixir.MyApp.RoomSupervisor']},
+              {registered,[]},
+              {vsn,"0.1.0"},
+              {mod,{'Elixir.MyApp.Application',[]}}]}.
