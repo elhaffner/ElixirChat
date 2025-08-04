@@ -2,30 +2,76 @@ defmodule Client do
   use GenServer
   require Logger
 
+  @moduledoc """
+  This module can be used to interact with the chat application from the client side. Methods in this GenServer
+  are used to handle joining rooms, sending messages, and receiving messages from the application.
+  """
+
+  #The host application works on port 5000, ip address is set to localhost for example.
   @ip {127, 0, 0, 1}
   @port 5000
 
+  #####################
+  ###  PUBLIC APIS  ###
+  #####################
+
+  @doc """
+  Wrapper to start a client connection.
+
+  ##Parameters
+    - userName: this is the userName the client will used to join rooms.
+  """
   def start_link(userName) do
     GenServer.start_link(Client, %{userName: userName, socket: nil, room: :nil}, name: :client)
   end
 
+  @doc """
+  Wrapper to send a message to the server.
+
+  ##Parameters
+    -message: message to be sent.
+  """
   def send_message(message) do
      GenServer.cast(:client, {:send_message, message})
   end
 
+  @doc """
+  Wrapper for client to join a room.
+
+  ##Parameters
+    -room_id: the room to join.
+  """
   def join_room(room_id) do
     GenServer.call(:client, {:join_room, room_id})
   end
 
+  ###################
+  ###  CALLBACKS  ###
+  ###################
+
+  @doc """
+  Initiate a client server. Sends a message to connect to the chat room application in a separate server. This is
+  to let the init process stop. If :gen_tcp.connect/3 takes a while to respond, the GenServer might restart.
+
+  ##Parameters
+    -state: state of the client server
+  """
   @impl true
   def init(state) do
     send(self(), :connect)
     {:ok, state}
   end
 
+  @doc """
+  Handles the call join a room. Depending on the response of the join room request,
+  the user is notified if the join was successful or not.
+
+  ##Parameters
+    -{:join_room, room_id}: the room to join
+  """
   @impl true
   def handle_call({:join_room, room_id}, _from, state) do
-      msg = "JOIN:#{room_id}:#{state.userName}\n"
+      msg = "JOIN:#{room_id}:#{state.userName}\n" #Message starts with JOIN to indicate that this TCP message is for a user ot join.
 
       case :gen_tcp.send(state[:socket], msg) do
         :ok ->
@@ -38,6 +84,15 @@ defmodule Client do
       end
   end
 
+
+  @doc """
+  Handles sending a message from the client side. First checks if a room is already set for the client
+  to communicate to. If a room is set, the message is added to a string along with the userName and the room_id
+  to be sent to the chat server.
+
+  ##Parameters
+    -{:send_message, msg}: the message to be sent.
+  """
   @impl true
   def handle_cast({:send_message, msg}, state) do
     case state[:room] do
@@ -46,7 +101,7 @@ defmodule Client do
       {:noreply, state}
     _room ->
       Logger.info("Sending message : #{msg}")
-      message = "MSG:#{state[:room]}:#{state[:userName]}:#{msg}\n"
+      message = "MSG:#{state[:room]}:#{state[:userName]}:#{msg}\n" #Starts with message to indicate that this string contains a message.
 
       case :gen_tcp.send(state[:socket], message) do
         :ok ->
@@ -59,11 +114,17 @@ defmodule Client do
     end
   end
 
+  @doc """
+  Handles the client iniating a socket with the application. Once connection is established, the socket is added to this client's state.
+
+  ##Parameters
+    -state:  state of the GenServer.
+  """
   @impl true
   def handle_info(:connect, state) do
     Logger.info("Connecting to #{:inet.ntoa(@ip)}:#{@port}")
 
-    case :gen_tcp.connect(@ip, @port, [:binary, active: true, packet: :line]) do
+    case :gen_tcp.connect(@ip, @port, [:binary, active: true, packet: :line]) do #Set packet: :line -> this means every tcp packet is terminated by a newline.
       {:ok, socket} ->
         {:noreply, %{state | socket: socket}}
       {:error, reason} ->
@@ -72,6 +133,12 @@ defmodule Client do
     end
   end
 
+  @doc """
+  Handles receiving TCP messages. This is where messages arrive when other users in the same room post messages for example. 
+
+  ##Parameters
+    -data:  contains the tcp messages sent to the client.
+  """
   @impl true
   def handle_info({:tcp, _, data}, state) do
     Logger.info("#{data}")
