@@ -27,7 +27,7 @@ defmodule MyApp.Application do
       {MyApp.RoomSupervisor, []}
     ]
 
-    opts = [strategy: :one_for_one, name: MyApp.TopSupervisor] #one_for_one strategy to restart any server that crashes. 
+    opts = [strategy: :one_for_one, name: MyApp.TopSupervisor] #one_for_one strategy to restart any server that crashes.
     Supervisor.start_link(children, opts)
   end
 end

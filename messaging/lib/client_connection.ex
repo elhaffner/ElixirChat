@@ -64,42 +64,41 @@ defmodule MyApp.ClientConnection do
     #Trim message to remove any leading and ending whitespace,
     #then separate by ":" to retrieve command, room_id, username and message if possible.
     Logger.info("Received #{data}")
-    trimmed_message = String.trim(data)
-    Logger.info("Trimmed #{trimmed_message}")
+    json_payload = Jason.decode!(String.trim(data))
+    Logger.info(json_payload)
 
 
-    case String.split(trimmed_message, ":") do
-      [command, room_id, userName] ->
-        case command do
-          "JOIN" ->
-            Logger.info("JOIN COMMAND")
-            #Attempt to join given room.
-            case MyApp.ChatRoom.join_room(room_id, userName, state.socket) do
-              :ok ->
-                Logger.info("OK")
-                sendData(state.socket, "You joined #{room_id}\n")
+    case json_payload do
+      %{"command" => "JOIN", "room_id" => room_id, "userName" => userName} ->
+        Logger.info("JOIN COMMAND")
+        #Attempt to join given room.
+        case MyApp.ChatRoom.join_room(room_id, userName, state.socket) do
+          :ok ->
+            Logger.info("OK")
+            sendData(state.socket, "You joined #{room_id}\n")
 
-              {:error, :already_joined} ->
-                Logger.info("joined")
-                sendData(state.socket, "You have already joined room: #{room_id}\n")
+          {:error, :already_joined} ->
+            Logger.info("joined")
+            sendData(state.socket, "You have already joined room: #{room_id}\n")
 
-              {:error, :user_not_invited} ->
-                Logger.info("not invited")
-                sendData(state.socket, "You have not been invited to room: #{room_id}\n")
+          {:error, :user_not_invited} ->
+            Logger.info("not invited")
+            sendData(state.socket, "You have not been invited to room: #{room_id}\n")
 
-              _ ->
-                Logger.info("Catch all")
-              ##############ADD ERROR CASE FOR ROOM DOESN'T EXIST###########################
-              end
+          {:error, :room_does_not_exist} ->
+            Logger.info("Room has not been set up yet")
+            sendData(state.socket, "The room you are trying to join (#{room_id}) does not exist.\n")
+
+          _ ->
+            Logger.info("Catch all")
+          ##############ADD ERROR CASE FOR ROOM DOESN'T EXIST###########################
+        end
           ##########ADD CODE FOR OTHER COMMANDS IF NEEDED##################
-        end
-      [command, room_id, userName, message] ->
-        case command do
-          "MSG" ->
-            #Send a message to the given chat room
-            Logger.info("User wants to send message")
-            MyApp.ChatRoom.receive_message(room_id, userName, message)
-        end
+
+      %{"command" => "MSG", "room_id" => room_id, "userName" => userName, "message" => message} ->
+        #Send a message to the given chat room
+        Logger.info("User wants to send message")
+        MyApp.ChatRoom.receive_message(room_id, userName, message)
     end
 
     {:noreply, state}
@@ -124,7 +123,7 @@ defmodule MyApp.ClientConnection do
 
   ## Parameters
     - socket: the socket over which the message will be sent
-    - msg: the message to be sent. 
+    - msg: the message to be sent.
   """
   defp sendData(socket, msg) do
     case :gen_tcp.send(socket, msg) do

@@ -50,9 +50,14 @@ defmodule MyApp.ChatRoom do
     stored in the chatRooms map if join is successful.
   """
   def join_room(room_id, userName, client_socket) do
-    ####################### NEED CHECK HERE TO CHECK IF ROOM EXISTS###############################
-    via_tuple = {:via, Registry, {MyApp.Registry, room_id}}
-    GenServer.call(via_tuple, {:join_room, userName, client_socket})
+    case Registry.lookup(MyApp.Registry, room_id) do
+      [{pid, _value}] ->
+        GenServer.cast(pid, {:join_room, userName, client_socket})
+        :ok
+
+      [] ->
+        {:error, :room_does_not_exist}
+    end
   end
 
   @doc """
