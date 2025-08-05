@@ -27,8 +27,13 @@ defmodule MyApp.RoomSupervisor do
   """
 
   def start_room(room_id) do
-    child_spec = {MyApp.ChatRoom, room_id}
-    DynamicSupervisor.start_child(:roomsupervisor, child_spec)
+    case Registry.lookup(MyApp.Registry, room_id) do
+      [{_pid, _value}] ->
+        Logger.error("Tried to create a room that already exists.")
+      [] ->
+        child_spec = {MyApp.ChatRoom, room_id}
+        DynamicSupervisor.start_child(:roomsupervisor, child_spec)
+    end
   end
 
   ###################

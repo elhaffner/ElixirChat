@@ -20,6 +20,8 @@ defmodule MyApp.Application do
 
   def start(_type, _args) do
     Logger.info("Chat Application starting...")
+    Logger.info(to_string(DateTime.utc_now()))
+
     children = [
       {Registry, keys: :unique, name: MyApp.Registry},
       {MyApp.ConnectionSupervisor, []},

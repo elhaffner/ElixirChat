@@ -52,9 +52,16 @@ defmodule MyApp.ChatRoom do
   def join_room(room_id, userName, client_socket) do
     case Registry.lookup(MyApp.Registry, room_id) do
       [{pid, _value}] ->
-        GenServer.cast(pid, {:join_room, userName, client_socket})
-        :ok
+        GenServer.call(pid, {:join_room, userName, client_socket})
+      [] ->
+        {:error, :room_does_not_exist}
+    end
+  end
 
+  def leave_room(room_id, userName, client_socket) do
+    case Registry.lookup(MyApp.Registry, room_id) do
+      [{pid, _value}] ->
+        GenServer.call(pid, {:leave_room, userName, client_socket})
       [] ->
         {:error, :room_does_not_exist}
     end
@@ -113,13 +120,14 @@ defmodule MyApp.ChatRoom do
     - state: GenServer state
   """
   def handle_cast({:handle_receive_message, userName, message}, state) do
-    msg = %{user: userName, body: message}
+    timestamp = to_string(DateTime.utc_now())
+    msg = %{user: userName, body: message, timestamp: timestamp}
     new_messages = state.messages ++ [msg]
 
     #Loop over every socket in the state.user map.
     Enum.each(state.users, fn {_user, socket} ->
       if socket != nil do
-        sendData(socket, "[#{userName}]: #{message}\n") #Send message string with the username included, this allows for identification in the chat.
+        sendData(socket, "[#{timestamp}][/#{state[:room_id]}][#{userName}]: #{message}\n") #Send message string with the username included, this allows for identification in the chat.
       end
     end)
 
@@ -144,8 +152,8 @@ defmodule MyApp.ChatRoom do
         new_state = %{state | users: new_users}
 
 
-        Enum.each(state.messages, fn %{user: from_user, body: msg} ->
-          sendData(client_socket, "[#{from_user}]: #{msg}")
+        Enum.each(state.messages, fn %{user: from_user, body: msg, timestamp: time_stamp} ->
+          sendData(client_socket, "[#{time_stamp}][/#{state[:room_id]}][#{from_user}]: #{msg}\n")
         end)
 
         {:reply, :ok, new_state}
@@ -160,6 +168,28 @@ defmodule MyApp.ChatRoom do
       {:reply, {:error, :user_not_invited}, state}
     end
 
+  end
+
+  @impl true
+  def handle_call({:leave_room, userName, client_socket}, _from , state) do
+    if Map.has_key?(state.users, userName) do
+
+      #If the key exists but the value is empty, user is yet to join.
+      if state.users[userName] != nil do
+        new_users = Map.put(state.users, userName, nil)
+        new_state = %{state | users: new_users}
+
+        {:reply, :ok, new_state}
+
+      else
+        #Error handling if user already joined
+        {:reply, {:error, :user_has_already_left}, state}
+      end
+
+    else
+      #Error handling for users that are not invited.
+      {:reply, {:error, :user_not_invited}, state}
+    end
   end
 
   #########################

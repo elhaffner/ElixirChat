@@ -93,7 +93,25 @@ defmodule MyApp.ClientConnection do
             Logger.info("Catch all")
           ##############ADD ERROR CASE FOR ROOM DOESN'T EXIST###########################
         end
-          ##########ADD CODE FOR OTHER COMMANDS IF NEEDED##################
+
+      %{"command" => "LEAVE", "room_id" => room_id, "userName" => userName} ->
+        Logger.info("LEAVE COMMAND")
+
+        case MyApp.ChatRoom.leave_room(room_id, userName, state.socket) do
+          :ok ->
+            Logger.info("OK")
+            sendData(state.socket, "You have left #{room_id}\n")
+          {:error, :user_has_already_left} ->
+            Logger.info("Already left")
+            sendData(state.socket, "You have already left room #{room_id}\n")
+          {:error, :user_not_invited} ->
+            Logger.info("not invited")
+            sendData(state.socket, "You have already been kicked out of this room: #{room_id}\n")
+
+          {:error, :room_does_not_exist} ->
+            Logger.info("Room has not been set up yet")
+            sendData(state.socket, "The room you are trying to leave (#{room_id}) does not exist (anymore).\n")
+        end
 
       %{"command" => "MSG", "room_id" => room_id, "userName" => userName, "message" => message} ->
         #Send a message to the given chat room
@@ -118,13 +136,11 @@ defmodule MyApp.ClientConnection do
   #########################
 
 
-  @doc """
-  This is a private method to handle errors when sending messages over tcp.
+  # This is a private method to handle errors when sending messages over tcp.
 
   ## Parameters
-    - socket: the socket over which the message will be sent
-    - msg: the message to be sent.
-  """
+  #  - socket: the socket over which the message will be sent
+  #    - msg: the message to be sent.
   defp sendData(socket, msg) do
     case :gen_tcp.send(socket, msg) do
       :ok -> :ok

@@ -45,6 +45,11 @@ defmodule Client do
     GenServer.call(:client, {:join_room, room_id})
   end
 
+
+  def leave_room() do
+    GenServer.call(:client, {:leave_room})
+  end
+
   ###################
   ###  CALLBACKS  ###
   ###################
@@ -84,6 +89,26 @@ defmodule Client do
           Logger.error("Failed to send join request #{inspect(reason)}")
           {:reply, {:error, reason}, state}
       end
+  end
+
+  def handle_call({:leave_room}, _from, state) do
+    if state[:room] != nil do
+      msg = %{ "command" => "LEAVE", "room_id" => state[:room], "userName" => state.userName }
+      json_msg = Jason.encode!(msg) <> "\n"
+
+      case :gen_tcp.send(state[:socket], json_msg) do
+        :ok ->
+          new_state = Map.put(state, :room, nil)
+          Logger.info("You have left the room")
+          {:reply, :ok, new_state}
+        {:error, reason} ->
+          Logger.error("Failed to send leave request #{inspect(reason)}")
+          {:reply, {:error, reason}, state}
+      end
+
+    else
+      Logger.error("Please join a room first")
+    end
   end
 
 

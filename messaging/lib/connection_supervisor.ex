@@ -24,7 +24,11 @@ defmodule MyApp.ConnectionSupervisor do
   Creates a new connection and passes in a socket for the client.
   """
   def save_connection(client_socket) do
-    child_spec = {MyApp.ClientConnection, client_socket}
+    child_spec = %{
+      id: MyApp.ClientConnection,
+      start: {MyApp.ClientConnection, :start_link, [client_socket]},
+      restart: :temporary #If tcp connection is closed, don't restart, instead wait for client to reinitiate a new socket. 
+    }
     DynamicSupervisor.start_child(:connection_supervisor, child_spec)
   end
 
