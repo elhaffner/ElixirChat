@@ -31,8 +31,8 @@ defmodule Client do
   ##Parameters
     -message: message to be sent.
   """
-  def send_message(message) do
-     GenServer.cast(:client, {:send_message, message})
+  def send_message(payload) do
+     GenServer.cast(:client, {:send_message, payload})
   end
 
   @doc """
@@ -71,9 +71,11 @@ defmodule Client do
   """
   @impl true
   def handle_call({:join_room, room_id}, _from, state) do
-      msg = "JOIN:#{room_id}:#{state.userName}\n" #Message starts with JOIN to indicate that this TCP message is for a user ot join.
 
-      case :gen_tcp.send(state[:socket], msg) do
+      msg = %{ "command" => "JOIN", "room_id" => room_id, "userName" => state.userName }
+      json_msg = Jason.encode!(msg) <> "\n"
+
+      case :gen_tcp.send(state[:socket], json_msg) do
         :ok ->
           new_state = Map.put(state, :room, room_id)
           Logger.info(new_state)
@@ -94,16 +96,17 @@ defmodule Client do
     -{:send_message, msg}: the message to be sent.
   """
   @impl true
-  def handle_cast({:send_message, msg}, state) do
+  def handle_cast({:send_message, payload}, state) do
     case state[:room] do
     nil ->
       Logger.info("Please join a room first")
       {:noreply, state}
     _room ->
-      Logger.info("Sending message : #{msg}")
-      message = "MSG:#{state[:room]}:#{state[:userName]}:#{msg}\n" #Starts with message to indicate that this string contains a message.
+      Logger.info("Sending message : #{payload}")
+      msg = %{"command" => "MSG", "room_id" => state[:room], "userName" => state[:userName], "message" => payload}
+      json_msg = Jason.encode!(msg) <> "\n"
 
-      case :gen_tcp.send(state[:socket], message) do
+      case :gen_tcp.send(state[:socket], json_msg) do
         :ok ->
           {:noreply, state}
 
@@ -133,12 +136,10 @@ defmodule Client do
     end
   end
 
-  @doc """
-  Handles receiving TCP messages. This is where messages arrive when other users in the same room post messages for example. 
+  #Handles receiving TCP messages. This is where messages arrive when other users in the same room post messages for example.
 
   ##Parameters
-    -data:  contains the tcp messages sent to the client.
-  """
+   # -data:  contains the tcp messages sent to the client.
   @impl true
   def handle_info({:tcp, _, data}, state) do
     Logger.info("#{data}")
