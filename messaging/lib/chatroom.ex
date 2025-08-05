@@ -204,6 +204,16 @@ defmodule MyApp.ChatRoom do
     end
   end
 
+  def handle_call({:notify_deletion}, _from, state) do
+    Enum.each(state.users, fn {_user, socket} ->
+      if socket != nil do
+        Logger.info("Sending delete room")
+        sendData(socket, "DELETE_ROOM\n")
+      end
+    end)
+    {:reply, :ok, state}
+  end
+
   #########################
   ###  PRIVATE METHODS  ###
   #########################

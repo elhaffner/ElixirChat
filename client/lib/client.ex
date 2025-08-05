@@ -176,7 +176,7 @@ defmodule Client do
         log_user_msg = %{"command" => "LOGIN", "userName" => state.userName}
         json_msg = Jason.encode!(log_user_msg) <> "\n"
 
-        :gen_tcp.send(socket, json_msg) 
+        :gen_tcp.send(socket, json_msg)
 
         {:noreply, %{state | socket: socket}}
 
@@ -192,8 +192,15 @@ defmodule Client do
    # -data:  contains the tcp messages sent to the client.
   @impl true
   def handle_info({:tcp, _, data}, state) do
-    Logger.info("#{data}")
-    {:noreply, state}
+    case String.trim(data) do
+      "DELETE_ROOM" ->
+        Logger.info("Room #{state[:room]} has been deleted.")
+        new_state = %{state | room: nil}
+        {:noreply, new_state}
+      _ ->
+        Logger.info("#{data}")
+        {:noreply, state}
+    end
   end
 
   @impl true

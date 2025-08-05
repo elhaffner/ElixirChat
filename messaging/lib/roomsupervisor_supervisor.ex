@@ -36,6 +36,31 @@ defmodule MyApp.RoomSupervisor do
     end
   end
 
+  def delete_room(room_id) do
+    case Registry.lookup(MyApp.Registry, room_id) do
+      [{pid, _value}] ->
+      case GenServer.call(pid, {:notify_deletion}) do
+
+        :ok ->
+          case DynamicSupervisor.terminate_child(:roomsupervisor, pid) do
+
+          :ok ->
+            Logger.info("Room #{room_id} deleted successfully")
+            :ok
+
+          {:error, reason} ->
+            Logger.error("Failed to stop room: #{inspect(reason)}")
+          end
+
+        {:error, reason} ->
+          Logger.error("Failed to notify clients: #{inspect(reason)}")
+      end
+
+      [] ->
+        Logger.error("The room you are trying to remove does not exist. ")
+    end
+  end
+
   def check_which_rooms(userName) do
     DynamicSupervisor.which_children(:roomsupervisor)
     |> Enum.map( fn {_id, pid, _type, _modules} -> pid end)

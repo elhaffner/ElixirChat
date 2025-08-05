@@ -44,7 +44,7 @@ defmodule MyApp.ClientConnection do
     #Logger.info("Client connected from #{inspect(client_ip)}:#{client_port}")
 
     :ok = :inet.setopts(client_socket, [active: :true, packet: :line])
-    {:ok, %{socket: client_socket, room: nil, user: nil}}
+    {:ok, %{socket: client_socket, user: nil}}
   end
 
   @doc """
@@ -92,7 +92,7 @@ defmodule MyApp.ClientConnection do
             Logger.info("OK")
             sendData(state.socket, "You joined #{room_id}\n")
 
-            %{state | room: room_id}
+            state
 
           {:error, :already_joined} ->
             Logger.info("joined")
@@ -126,7 +126,7 @@ defmodule MyApp.ClientConnection do
             Logger.info("OK")
             sendData(state.socket, "You have left #{room_id}\n")
 
-            %{state | room: nil}
+            state
 
           {:error, :user_has_already_left} ->
             Logger.info("Already left")
