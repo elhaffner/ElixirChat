@@ -156,6 +156,8 @@ defmodule MyApp.ChatRoom do
           sendData(client_socket, "[#{time_stamp}][/#{state[:room_id]}][#{from_user}]: #{msg}\n")
         end)
 
+        GenServer.cast(self(), {:handle_receive_message, "Server", "User #{userName} has joined the room!"})
+
         {:reply, :ok, new_state}
 
       else
@@ -179,6 +181,8 @@ defmodule MyApp.ChatRoom do
         new_users = Map.put(state.users, userName, nil)
         new_state = %{state | users: new_users}
 
+        GenServer.cast(self(), {:handle_receive_message, "Server", "User #{userName} has left the room!"})
+
         {:reply, :ok, new_state}
 
       else
@@ -189,6 +193,14 @@ defmodule MyApp.ChatRoom do
     else
       #Error handling for users that are not invited.
       {:reply, {:error, :user_not_invited}, state}
+    end
+  end
+
+  def handle_call({:user_invited, userName}, _from, state) do
+    if Map.has_key?(state.users, userName) do
+      {:reply, true, state}
+    else
+      {:reply, false, state}
     end
   end
 

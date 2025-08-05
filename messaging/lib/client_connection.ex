@@ -69,6 +69,21 @@ defmodule MyApp.ClientConnection do
 
 
     case json_payload do
+      %{"command" => "LOGIN", "userName" => userName} ->
+        Logger.info("#{userName} has logged in")
+        %{state | user: userName}
+
+      %{"command" => "CHECK_ROOMS", "userName" => userName} ->
+        Logger.info("Check room command")
+
+        invite_list = MyApp.RoomSupervisor.check_which_rooms(userName)
+        sendData(socket, "You have already been invited to the following rooms: \n")
+        Enum.each(invite_list, fn room ->
+          sendData(socket, "#{room}\n")
+        end)
+
+        state
+
       %{"command" => "JOIN", "room_id" => room_id, "userName" => userName} ->
         Logger.info("JOIN COMMAND")
         #Attempt to join given room.
@@ -77,20 +92,29 @@ defmodule MyApp.ClientConnection do
             Logger.info("OK")
             sendData(state.socket, "You joined #{room_id}\n")
 
+            %{state | room: room_id}
+
           {:error, :already_joined} ->
             Logger.info("joined")
             sendData(state.socket, "You have already joined room: #{room_id}\n")
+
+            state
 
           {:error, :user_not_invited} ->
             Logger.info("not invited")
             sendData(state.socket, "You have not been invited to room: #{room_id}\n")
 
+            state
+
           {:error, :room_does_not_exist} ->
             Logger.info("Room has not been set up yet")
             sendData(state.socket, "The room you are trying to join (#{room_id}) does not exist.\n")
 
+            state
+
           _ ->
             Logger.info("Catch all")
+            state
           ##############ADD ERROR CASE FOR ROOM DOESN'T EXIST###########################
         end
 
@@ -101,22 +125,32 @@ defmodule MyApp.ClientConnection do
           :ok ->
             Logger.info("OK")
             sendData(state.socket, "You have left #{room_id}\n")
+
+            %{state | room: nil}
+
           {:error, :user_has_already_left} ->
             Logger.info("Already left")
             sendData(state.socket, "You have already left room #{room_id}\n")
+
+            state
           {:error, :user_not_invited} ->
             Logger.info("not invited")
             sendData(state.socket, "You have already been kicked out of this room: #{room_id}\n")
 
+            state
+
           {:error, :room_does_not_exist} ->
             Logger.info("Room has not been set up yet")
             sendData(state.socket, "The room you are trying to leave (#{room_id}) does not exist (anymore).\n")
+
+            state
         end
 
       %{"command" => "MSG", "room_id" => room_id, "userName" => userName, "message" => message} ->
         #Send a message to the given chat room
         Logger.info("User wants to send message")
         MyApp.ChatRoom.receive_message(room_id, userName, message)
+        state
     end
 
     {:noreply, state}

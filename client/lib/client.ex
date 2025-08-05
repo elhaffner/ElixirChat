@@ -50,6 +50,10 @@ defmodule Client do
     GenServer.call(:client, {:leave_room})
   end
 
+  def check_invited_rooms() do
+    GenServer.call(:client, {:which_rooms_have_I_been_invited})
+  end
+
   ###################
   ###  CALLBACKS  ###
   ###################
@@ -111,6 +115,19 @@ defmodule Client do
     end
   end
 
+  def handle_call({:which_rooms_have_I_been_invited}, _from, state) do
+    msg = %{ "command" => "CHECK_ROOMS", "userName" => state.userName }
+    json_msg = Jason.encode!(msg) <> "\n"
+
+    case :gen_tcp.send(state[:socket], json_msg) do
+      :ok ->
+        {:reply, :ok, state}
+      {:error, reason} ->
+        Logger.error("Failed to send check room request #{inspect(reason)}")
+        {:reply, {:error, reason}, state}
+    end
+  end
+
 
   @doc """
   Handles sending a message from the client side. First checks if a room is already set for the client
@@ -153,8 +170,16 @@ defmodule Client do
     Logger.info("Connecting to #{:inet.ntoa(@ip)}:#{@port}")
 
     case :gen_tcp.connect(@ip, @port, [:binary, active: true, packet: :line]) do #Set packet: :line -> this means every tcp packet is terminated by a newline.
+
       {:ok, socket} ->
+
+        log_user_msg = %{"command" => "LOGIN", "userName" => state.userName}
+        json_msg = Jason.encode!(log_user_msg) <> "\n"
+
+        :gen_tcp.send(socket, json_msg) 
+
         {:noreply, %{state | socket: socket}}
+
       {:error, reason} ->
       Logger.error("Failed to connect on port #{@port}: #{inspect(reason)}")
       {:stop, reason}

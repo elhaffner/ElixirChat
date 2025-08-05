@@ -36,6 +36,17 @@ defmodule MyApp.RoomSupervisor do
     end
   end
 
+  def check_which_rooms(userName) do
+    DynamicSupervisor.which_children(:roomsupervisor)
+    |> Enum.map( fn {_id, pid, _type, _modules} -> pid end)
+    |> Enum.filter(fn pid ->
+      GenServer.call(pid, {:user_invited, userName})
+    end)
+    |> Enum.map(fn pid ->
+      :sys.get_state(pid).room_id
+    end)
+  end
+
   ###################
   ###  CALLBACKS  ###
   ###################
