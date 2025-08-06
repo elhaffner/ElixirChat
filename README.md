@@ -44,7 +44,7 @@ Once started the application will prompt the user to type in a username, a conne
       **leave**               - leaves the current room if you have already joined one </br>
       **send MESSAGE**        - sends a message to the current room </br>
       **help**                - Show this help message </br>
-      **exit**                - Exit the CLI </br>
+      **exit**                - Shuts down the server </br>
 The *MESSAGE* variable can consist of multiple words, and doesn't need to be enclosed in quotation marks - the application will simply consider everything after the 'send' keyword as the message to be sent. It is also worth noting that upon starting, the client application will automatically show the user any rooms they have already been invited to. The same is done whenever a user leaves a room - a 'checkRooms' request will be made, so that the user can decide what room they want to join. The application also handles a series of errors, such as a user trying to join a room that doesn't exist, a user trying to join a room that they haven't been invited to, or a user trying to send a message without having joined a room among others. Where possible these edge cases have been identified to inform the user of what their current connection is capable of doing. 
 
 ### Messaging
