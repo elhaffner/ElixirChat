@@ -57,7 +57,7 @@ The server-side administrator also retains a log of incoming connections and jso
 ## Architecture
 This section covers the architecure of the client and server-side applications. Both applications were built using GenServers and Supervisors to track the state of the application. 
 ### Client.Application
-The client application is relatively simple and uses a Dynamicsupervisor to manage two GenServers - one called Client.Client which allows access to the chat server, and one for Client.CLI which handles the CLI interface. The client.ex handles the communication with the chat server via the establishment of a tcp socket. Once a socket is established, individual commands send JSON objects to the server which are then parsed to perform a specific function. For example, in order to join a room, the client will encode the following as JSON.
+The client application is relatively simple and uses a Dynamicsupervisor to manage two GenServers - one called Client.Client which allows access to the chat server, and one for Client.CLI which handles the CLI interface. The client.ex file handles the communication with the chat server via the establishment of a tcp socket. Once a socket is established, individual commands send JSON objects to the server which are then parsed to perform a specific function. For example, in order to join a room, the client will encode the following as JSON.
 ```
 msg = %{ "command" => "JOIN", "room_id" => room_id, "userName" => state.userName }
 ```
