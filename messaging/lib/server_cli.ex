@@ -22,7 +22,6 @@ defmodule MyApp.CLI do
   Starts the GenServer. A separate task starts the input loop.
   """
   def init(state) do
-    Process.flag(:trap_exit, true)
     IO.puts("CLI has started. Type 'help' for commands.\n")
     Task.start(fn -> input_loop() end)
     {:ok, state}
