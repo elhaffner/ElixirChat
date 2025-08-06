@@ -41,7 +41,8 @@ defmodule MyApp.ChatRoom do
   end
 
   @doc """
-  Wrapper function to handle user joining a room
+  Wrapper function to handle user joining a room. Checks if a room is registered in the registry
+  before proceeding to call :join_room.
 
   ## Parameters
     -room_id: This is the room the user wants to join
@@ -50,6 +51,7 @@ defmodule MyApp.ChatRoom do
     stored in the chatRooms map if join is successful.
   """
   def join_room(room_id, userName, client_socket) do
+    #If Registry.lookup returns an empty list, then room hasn't been created yet.
     case Registry.lookup(MyApp.Registry, room_id) do
       [{pid, _value}] ->
         GenServer.call(pid, {:join_room, userName, client_socket})
@@ -58,6 +60,13 @@ defmodule MyApp.ChatRoom do
     end
   end
 
+  @doc """
+  Wrapper function to handle a user leaving a room. The function first checks whether the room already
+  exists and then calls :leave_room.
+  ## Parameters
+    - room_id: This is the room the user wants to leave
+    - userName: the user's username
+  """
   def leave_room(room_id, userName, client_socket) do
     case Registry.lookup(MyApp.Registry, room_id) do
       [{pid, _value}] ->
@@ -71,13 +80,11 @@ defmodule MyApp.ChatRoom do
   Wrapper function to receive a message from a user, for a specific room.
 
   ## Parameters
-    -room_id: This is the room the user wants to send a message to.
+    - room_id: This is the room the user wants to send a message to.
     - userName: This is the user name of the user sending a message.
     - message: text a user wants to send.
   """
   def receive_message(room_id, userName, message) do
-    ###############################Check if user is invited to a room.
-    ##Added client_socket as parameter to check if socket is in room_id
     via_tuple = {:via, Registry, {MyApp.Registry, room_id}}
     GenServer.cast(via_tuple, {:handle_receive_message, userName, message})
   end
@@ -93,7 +100,7 @@ defmodule MyApp.ChatRoom do
   """
   @impl true
   def init(state) do
-    Logger.info("Chat room started with id #{state.room_id}")
+    Logger.info("[SERVER]: Room has been created with name: #{state.room_id}")
     {:ok, state}
   end
 
@@ -108,26 +115,33 @@ defmodule MyApp.ChatRoom do
   def handle_cast({:invite_user, userName}, state) do
     new_users = Map.put(state.users, userName, nil)
     new_state = %{state | users: new_users}
+    Logger.info("[SERVER]: User #{userName} has been invited to room #{state.room_id}")
     {:noreply, new_state}
   end
 
-  @doc """
-  Used to handle receiving messages. Add new message to message list if user is allowed in the room. Once
-  the message has been added to the state, it is broadcasted to all connected users, including the user that sent it (that
-  way it shows up in everyone's chat.)
+  # """
+  #Used to handle receiving messages. Add new message to message list if user is allowed in the room. Once
+  #the message has been added to the state, it is broadcasted to all connected users, including the user that sent it (that
+  #way it shows up in everyone's chat.)
   ## Parameters
-    - {:invite_user, userName}: the username of the user to be invited
-    - state: GenServer state
-  """
+  #  - {:invite_user, userName}: the username of the user to be invited
+  #  - state: GenServer state
+  #"""
+  @impl true
   def handle_cast({:handle_receive_message, userName, message}, state) do
-    timestamp = to_string(DateTime.utc_now())
+    timestamp = String.slice(to_string(DateTime.utc_now()), 0, 19)
     msg = %{user: userName, body: message, timestamp: timestamp}
+
+    colour_timestamp = IO.ANSI.format([:green, "[#{timestamp}]"]) |> IO.iodata_to_binary()
+    colour_room_id = IO.ANSI.format([:light_magenta, "[/#{state[:room_id]}]"]) |> IO.iodata_to_binary()
+    colour_username = IO.ANSI.format([:light_yellow, "[#{userName}]"])  |> IO.iodata_to_binary()
+
     new_messages = state.messages ++ [msg]
 
     #Loop over every socket in the state.user map.
     Enum.each(state.users, fn {_user, socket} ->
       if socket != nil do
-        sendData(socket, "[#{timestamp}][/#{state[:room_id]}][#{userName}]: #{message}\n") #Send message string with the username included, this allows for identification in the chat.
+        sendData(socket, "#{colour_timestamp}#{colour_room_id}#{colour_username}: #{message}\n") #Send message string with the username included, this allows for identification in the chat.
       end
     end)
 
@@ -153,7 +167,10 @@ defmodule MyApp.ChatRoom do
 
 
         Enum.each(state.messages, fn %{user: from_user, body: msg, timestamp: time_stamp} ->
-          sendData(client_socket, "[#{time_stamp}][/#{state[:room_id]}][#{from_user}]: #{msg}\n")
+          colour_timestamp = IO.ANSI.format([:light_black, "[#{time_stamp}]"]) |> IO.iodata_to_binary()
+          colour_room_id = IO.ANSI.format([:light_magenta, "[/#{state[:room_id]}]"]) |> IO.iodata_to_binary()
+          colour_username = IO.ANSI.format([:light_yellow, "[#{from_user}]"])  |> IO.iodata_to_binary()
+          sendData(client_socket, "#{colour_timestamp}#{colour_room_id}#{colour_username}: #{msg}\n")
         end)
 
         GenServer.cast(self(), {:handle_receive_message, "Server", "User #{userName} has joined the room!"})
@@ -172,15 +189,20 @@ defmodule MyApp.ChatRoom do
 
   end
 
+  #Callback function for user to leave room.
+  ## Parameters
+  # - userName: the username of the user trying to leave the room.
   @impl true
-  def handle_call({:leave_room, userName, client_socket}, _from , state) do
+  def handle_call({:leave_room, userName, _client_socket}, _from , state) do
     if Map.has_key?(state.users, userName) do
 
-      #If the key exists but the value is empty, user is yet to join.
+      #If the key exists but the value is empty, user has already left the room or is yet to join.
+      #If a socket has been connected to the username, remove it from the map. The user will still remain invited.
       if state.users[userName] != nil do
         new_users = Map.put(state.users, userName, nil)
         new_state = %{state | users: new_users}
 
+        #Send a message to the chatroom notifying other users that the user has left.
         GenServer.cast(self(), {:handle_receive_message, "Server", "User #{userName} has left the room!"})
 
         {:reply, :ok, new_state}
@@ -196,6 +218,8 @@ defmodule MyApp.ChatRoom do
     end
   end
 
+  #Checks if a user is invited to a chat room. Returns a boolean value.
+  @impl true
   def handle_call({:user_invited, userName}, _from, state) do
     if Map.has_key?(state.users, userName) do
       {:reply, true, state}
@@ -204,10 +228,12 @@ defmodule MyApp.ChatRoom do
     end
   end
 
+  #When a room is deleted, all users currently in the room should be notified.
+  @impl true
   def handle_call({:notify_deletion}, _from, state) do
     Enum.each(state.users, fn {_user, socket} ->
       if socket != nil do
-        Logger.info("Sending delete room")
+        #Logger.info("Sending delete room")
         sendData(socket, "DELETE_ROOM\n")
       end
     end)
@@ -218,13 +244,12 @@ defmodule MyApp.ChatRoom do
   ###  PRIVATE METHODS  ###
   #########################
 
-  @doc """
-  This is a private method to handle errors when sending messages over tcp.
+  #This is a private method to handle errors when sending messages over tcp.
 
   ## Parameters
-    - socket: the socket over which the message will be sent
-    - msg: the message to be sent.
-  """
+  #  - socket: the socket over which the message will be sent
+  #  - msg: the message to be sent.
+  #
   defp sendData(socket, msg) do
     case :gen_tcp.send(socket, msg) do
       :ok -> :ok

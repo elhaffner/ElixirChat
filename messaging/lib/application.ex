@@ -3,7 +3,7 @@ defmodule MyApp.Application do
   require Logger
 
   @moduledoc """
-  This is the root of the chat server, and is the script called upon 'ies -S mix'. This
+  This is the root of the chat server. This
   module owns the Supervision tree all top-level modules within the application.
 
   A list of children it starts:
@@ -18,12 +18,14 @@ defmodule MyApp.Application do
   a child of the room supervisor.
   """
 
+  @impl true
   def start(_type, _args) do
     children = [
       {Registry, keys: :unique, name: MyApp.Registry},
       {MyApp.ConnectionSupervisor, []},
       {MyApp.Listening, name: :listening},
-      {MyApp.RoomSupervisor, []}
+      {MyApp.RoomSupervisor, []},
+      MyApp.CLI
     ]
 
     opts = [strategy: :one_for_one, name: MyApp.TopSupervisor] #one_for_one strategy to restart any server that crashes.

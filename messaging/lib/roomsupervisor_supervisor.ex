@@ -36,31 +36,45 @@ defmodule MyApp.RoomSupervisor do
     end
   end
 
+  @doc """
+  Deletes a room by removing its GenServer from the supervision tree
+
+  ##Parameters
+  - room_id: Name of the room to be deleted.
+  """
   def delete_room(room_id) do
+    #If room is in registry, proceed to delete, otherwise raise an error.
     case Registry.lookup(MyApp.Registry, room_id) do
       [{pid, _value}] ->
+      #Starts a call to notify clients of a room deletion 
       case GenServer.call(pid, {:notify_deletion}) do
 
         :ok ->
           case DynamicSupervisor.terminate_child(:roomsupervisor, pid) do
 
           :ok ->
-            Logger.info("Room #{room_id} deleted successfully")
+            Logger.info("[SERVER]: Room #{room_id} deleted successfully")
             :ok
 
           {:error, reason} ->
-            Logger.error("Failed to stop room: #{inspect(reason)}")
+            Logger.error("[SERVER]:Failed to stop room: #{inspect(reason)}")
           end
 
         {:error, reason} ->
-          Logger.error("Failed to notify clients: #{inspect(reason)}")
+          Logger.error("[SERVER]: Failed to notify clients: #{inspect(reason)}")
       end
 
       [] ->
-        Logger.error("The room you are trying to remove does not exist. ")
+        Logger.error("[SERVER]: The room you are trying to remove does not exist. ")
     end
   end
 
+  @doc """
+  Returns a list of strings containing the names of rooms a user has been invited to.
+
+  ##Parameters
+    - userName: the identifier of the user
+  """
   def check_which_rooms(userName) do
     DynamicSupervisor.which_children(:roomsupervisor)
     |> Enum.map( fn {_id, pid, _type, _modules} -> pid end)
@@ -68,7 +82,7 @@ defmodule MyApp.RoomSupervisor do
       GenServer.call(pid, {:user_invited, userName})
     end)
     |> Enum.map(fn pid ->
-      :sys.get_state(pid).room_id
+      " - #{:sys.get_state(pid).room_id}"
     end)
   end
 

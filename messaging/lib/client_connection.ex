@@ -39,10 +39,6 @@ defmodule MyApp.ClientConnection do
   def init(client_socket) do
     Logger.info("Client Connection process has started...")
 
-    #Deleted Logging
-    #{:ok, {client_ip, client_port}} = :inet.peername(client_socket)
-    #Logger.info("Client connected from #{inspect(client_ip)}:#{client_port}")
-
     :ok = :inet.setopts(client_socket, [active: :true, packet: :line])
     {:ok, %{socket: client_socket, user: nil}}
   end
@@ -61,9 +57,7 @@ defmodule MyApp.ClientConnection do
   @impl true
   def handle_info({:tcp, socket, data}, state) do
 
-    #Trim message to remove any leading and ending whitespace,
-    #then separate by ":" to retrieve command, room_id, username and message if possible.
-    Logger.info("Received #{data}")
+    #Trim message to remove trailing whitespace and decode JSON into a map.
     json_payload = Jason.decode!(String.trim(data))
     Logger.info(json_payload)
 
@@ -71,84 +65,85 @@ defmodule MyApp.ClientConnection do
     case json_payload do
       %{"command" => "LOGIN", "userName" => userName} ->
         Logger.info("#{userName} has logged in")
+        #Update the username of the connection.
         %{state | user: userName}
 
+      #Checks the rooms a user has been invited to.
       %{"command" => "CHECK_ROOMS", "userName" => userName} ->
-        Logger.info("Check room command")
-
         invite_list = MyApp.RoomSupervisor.check_which_rooms(userName)
-        sendData(socket, "You have already been invited to the following rooms: \n")
+        sendData(socket, "[SERVER]: You have already been invited to the following rooms: \n")
         Enum.each(invite_list, fn room ->
           sendData(socket, "#{room}\n")
         end)
 
         state
 
+      #Connects user to a chat room
       %{"command" => "JOIN", "room_id" => room_id, "userName" => userName} ->
-        Logger.info("JOIN COMMAND")
+        #Logger.info("JOIN COMMAND")
         #Attempt to join given room.
         case MyApp.ChatRoom.join_room(room_id, userName, state.socket) do
           :ok ->
-            Logger.info("OK")
-            sendData(state.socket, "You joined #{room_id}\n")
+            #Logger.info("OK")
+            sendData(state.socket, "[SERVER]: You joined #{room_id}\n")
 
             state
 
           {:error, :already_joined} ->
-            Logger.info("joined")
-            sendData(state.socket, "You have already joined room: #{room_id}\n")
+            #Logger.info("joined")
+            sendData(state.socket, "[SERVER]: You have already joined room: #{room_id}\n")
 
             state
 
           {:error, :user_not_invited} ->
-            Logger.info("not invited")
-            sendData(state.socket, "You have not been invited to room: #{room_id}\n")
+           #Logger.info("not invited")
+            sendData(state.socket, "[SERVER]: You have not been invited to room: #{room_id}\n")
 
             state
 
           {:error, :room_does_not_exist} ->
-            Logger.info("Room has not been set up yet")
-            sendData(state.socket, "The room you are trying to join (#{room_id}) does not exist.\n")
+            #Logger.info("Room has not been set up yet")
+            sendData(state.socket, "[SERVER]: The room you are trying to join (#{room_id}) does not exist.\n")
 
             state
 
           _ ->
             Logger.info("Catch all")
             state
-          ##############ADD ERROR CASE FOR ROOM DOESN'T EXIST###########################
         end
 
+      #Disconnects a user from a room
       %{"command" => "LEAVE", "room_id" => room_id, "userName" => userName} ->
-        Logger.info("LEAVE COMMAND")
+        #Logger.info("LEAVE COMMAND")
 
         case MyApp.ChatRoom.leave_room(room_id, userName, state.socket) do
           :ok ->
-            Logger.info("OK")
-            sendData(state.socket, "You have left #{room_id}\n")
+            #Logger.info("OK")
+            sendData(state.socket, "[SERVER]: You have left #{room_id}\n")
 
             state
 
           {:error, :user_has_already_left} ->
-            Logger.info("Already left")
-            sendData(state.socket, "You have already left room #{room_id}\n")
+            #Logger.info("Already left")
+            sendData(state.socket, "[SERVER]: You have already left room #{room_id}\n")
 
             state
           {:error, :user_not_invited} ->
-            Logger.info("not invited")
-            sendData(state.socket, "You have already been kicked out of this room: #{room_id}\n")
+            #Logger.info("not invited")
+            sendData(state.socket, "[SERVER]: You have already been kicked out of this room: #{room_id}\n")
 
             state
 
           {:error, :room_does_not_exist} ->
-            Logger.info("Room has not been set up yet")
-            sendData(state.socket, "The room you are trying to leave (#{room_id}) does not exist (anymore).\n")
+            #Logger.info("Room has not been set up yet")
+            sendData(state.socket, "[SERVER]: The room you are trying to leave (#{room_id}) does not exist (anymore).\n")
 
             state
         end
 
+      #Sends a message from a user to a given chat room.
       %{"command" => "MSG", "room_id" => room_id, "userName" => userName, "message" => message} ->
-        #Send a message to the given chat room
-        Logger.info("User wants to send message")
+        #Logger.info("User wants to send message")
         MyApp.ChatRoom.receive_message(room_id, userName, message)
         state
     end
@@ -157,6 +152,12 @@ defmodule MyApp.ClientConnection do
   end
 
 
+
+  #Handles a TCP connection closing
+
+  ##Patameters
+  #  - {:tcp_closed, socket}: the socket that has been closed
+  #  - state: state of the GenServer
   @impl true
   def handle_info({:tcp_closed, socket}, state) do
     Logger.info("TCP connection closed: #{inspect(socket)}")

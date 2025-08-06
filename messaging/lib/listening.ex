@@ -42,7 +42,7 @@ defmodule MyApp.Listening do
     -state: Map that contains a a key to store listen_socket
   """
   @impl true
-  def init(state) do
+  def init(_state) do
     #active is set to false here - this module does not handle incoming messages.
     case :gen_tcp.listen(@port, [:binary, reuseaddr: true, active: false]) do
       {:ok, listen_socket} ->
